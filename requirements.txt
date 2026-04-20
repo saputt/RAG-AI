@@ -8,3 +8,6 @@ langchain-text-splitters
 langchain-chroma
 langchain-openai
 pypdf
+python-multipart
+langchain-huggingface
+sentence-transformers

@@ -5,40 +5,62 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 import os
 
-def get_chat_response(retriever, user_input):
+def get_chat_response(retriever, user_input, history):
     llm = ChatOpenAI(
-        model="qwen/qwen3.6-plus:free",
+        model="google/gemma-4-26b-a4b-it",
         openai_api_key=os.getenv("OPEN_ROUTER_API"),
         openai_api_base="https://openrouter.ai/api/v1",
         default_headers={
             "HTTP-Referer": "http://localhost:8000", 
             "X-Title": "Chatbot RAG Sauki", 
         },
-        temperature=0.7,
+        temperature=0.3,
         max_tokens=2048
     )
 
+    context_chat=""
+
+    for i in history:
+        role = "User" if i['role'] == 'USER' else 'ASSISTANT'
+        context_chat += f"{role}: {i['content']}\n"
+
+    print(context_chat)
+
+    rephrase_prompt = f"""Berdasarkan percakapan berikut, ubah pertanyaan terbaru user menjadi pertanyaan mandiri (standalone question) yang bisa dipahami tanpa melihat history.
+    
+    History:
+    {context_chat}
+    
+    Pertanyaan Terbaru: {user_input}
+    
+    Pertanyaan Mandiri:"""
+
+    standalone_query = llm.invoke(rephrase_prompt).content
+
     system_prompt = """
-        Anda adalah asisten dosen yang ahli dan komunikatif. 
-        Tugas Anda adalah menjelaskan materi berdasarkan konteks dokumen yang diberikan.
+        Anda adalah Asisten Dosen yang ahli dan komunikatif. 
+        
+        TUGAS ANDA:
+        Menjelaskan materi secara mendalam dengan menjadikan KONTEKS sebagai referensi UTAMA.
 
-        ATURAN:
-        1. Jika di dalam KONTEKS hanya ada poin-poin singkat, tugas Anda adalah MENJELASKANNYA secara mendalam dan mudah dimengerti.
-        2. Gunakan pengetahuan internal Anda untuk melengkapi penjelasan tersebut, asalkan topiknya masih relevan dengan KONTEKS.
-        3. Jika pertanyaan sama sekali tidak ada hubungannya dengan KONTEKS, baru Anda katakan tidak tahu.
-        4. Jawab dalam Bahasa Indonesia yang santai tapi edukatif.
-        5. Jika jawaban atau pertanyaan tidak terdapat di pengetahun internal respon seperti ini saja "Maaf hal tersebut tidak tersedia pada pengetahuan internal"
+        ATURAN PENGEMBANGAN JAWABAN:
+        1. GROUNDING: Jawaban harus dimulai dari fakta yang ada di KONTEKS.
+        2. ELABORASI: Anda SANGAT DISARANKAN untuk menambahkan penjelasan, detail, dan contoh tambahan dari pengetahuan Anda agar mahasiswa lebih paham, SELAMA topik tersebut masih relevan dengan isi KONTEKS.
+        3. FILTER TOPIK: Jika pertanyaan mahasiswa benar-benar di luar topik materi (misal: tanya resep, gosip, atau hal random), Anda harus menolak dengan sopan dan mengarahkan kembali ke materi.
+        4. GAYA MENGAJAR: Gunakan bahasa yang edukatif, santai (seperti asdos ke mahasiswa), dan gunakan analogi jika membantu.
+        5. JIKA PERTANYAAN TIDAK ADA DI KONTEKS: Kirim kalimat berikut, "Maaf jawaban tidak tersedia"
 
-        KONTEKS MATERI:
+        PENTING: 
+        Jangan hanya membaca teks. Jadilah asisten yang bisa mengembangkan materi di dokumen menjadi penjelasan yang lebih luas namun tetap di jalurnya.
+
+        KONTEKS:
         {context}
 
-        PERTANYAAN MAHASISWA:
+        PERTANYAAN:
         {question}
 
-        JAWABAN DETAIL:
+        JAWABAN:
         """
-
-
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -47,13 +69,13 @@ def get_chat_response(retriever, user_input):
     
     rag_chain = (
         {
-            "context": retriever,
-            "question": RunnablePassthrough()
+            "context": lambda x: retriever.invoke(standalone_query),
+            "question": lambda x: x["question"]
         }
         | prompt
         | llm 
         | StrOutputParser()
     )
 
-    response = rag_chain.invoke(user_input)
+    response = rag_chain.invoke({"question" : user_input})
     return response
