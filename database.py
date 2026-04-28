@@ -5,6 +5,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.document_loaders import UnstructuredPDFLoader
 
 load_dotenv()
 
@@ -20,8 +21,8 @@ def get_local_embeddings():
         encode_kwargs=encode_kwargs
     )
 
-def ingest_docs(collection_name):
-    loader = DirectoryLoader('./data', glob="./*.pdf", loader_cls=PyPDFLoader)
+def ingest_docs(filepath, collection_name):
+    loader = PyPDFLoader(filepath)
     docs = loader.load()
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -45,4 +46,5 @@ def load_existing_db(collection_name):
         embedding_function=embeddings,
         collection_name=collection_name   
     )
-    return vectorstore.as_retriever(search_kwargs={"k" : 5})
+    print(f"DEBUG: Ngecek koleksi [{collection_name}], jumlah data: {vectorstore._collection.count()}")
+    return vectorstore.as_retriever(search_kwargs={"k" : 8})
