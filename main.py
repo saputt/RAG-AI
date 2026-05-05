@@ -21,6 +21,7 @@ class AskAI(BaseModel):
     collection_name : str
     history: List[Dict]
     room_id: str
+    mode: str
 
 class IngestFile(BaseModel):
     collection_name : str
@@ -66,7 +67,7 @@ def asking_ai(data : AskAI):
     except Exception as e:
         return {"error" : "gagal mengakses file atau belum mengupload file"}
 
-    answer = get_chat_response(current_retriever, data.query, data.history)
+    answer = get_chat_response(current_retriever, data.query, data.history, data.mode)
     return {"answer" : answer}
 
 @app.delete("/room")

@@ -18,7 +18,7 @@ def format_docs_with_source(docs):
         formatted.append(f"SOURCE: {source}\nCONTENT: {doc.page_content}")
     return "\n\n---\n\n".join(formatted)
 
-def get_chat_response(retriever, user_input, roomid):
+def get_chat_response(retriever, user_input, roomid, mode):
     llm = ChatOpenAI(
         model="google/gemma-4-26b-a4b-it",
         openai_api_key=os.getenv("OPEN_ROUTER_API"),
@@ -33,9 +33,6 @@ def get_chat_response(retriever, user_input, roomid):
 
     history = memory.get_messages(roomid)
 
-    print('lollllll')
-    print(history)
-
     context_chat=""
 
     for i in history:
@@ -48,6 +45,8 @@ def get_chat_response(retriever, user_input, roomid):
     {context_chat}
     
     Pertanyaan Terbaru: {user_input}
+
+    Context: {mode}
     
     Pertanyaan Mandiri:"""
 
@@ -130,6 +129,59 @@ AN, AKRONIM, atau bentuk pendek dari istilah,
         - "Scrum Master" dan "scrum master"
         - Jangan menolak hanya karena bentuk kata pada pertanyaan tidak persis sama dengan yang tertulis di KONTEKS.
 
+        ## 9. Mode respons berdasarkan CONTEXT
+        - Variabel CONTEXT_MODE menentukan jenis respons yang harus diberikan.
+        - Jika CONTEXT_MODE = "CHAT", maka jawab seperti biasa sebagai asisten belajar berdasarkan KONTEKS dokumen.
+        - Jika CONTEXT_MODE = "QUIZ", maka JANGAN jawab seperti chat biasa. Sebagai gantinya, buat soal kuis berdasarkan KONTEKS dokumen.
+
+        ## 10. Aturan khusus jika CONTEXT_MODE = "QUIZ"
+        Jika CONTEXT_MODE = "QUIZ", ikuti SEMUA aturan berikut:
+        - Buat TEPAT 10 soal.
+        - Semua soal HARUS berasal dari materi yang ada di KONTEKS.
+        - Jangan membuat soal dari topik yang tidak dibahas dalam KONTEKS.
+        - Soal harus berupa pilihan ganda.
+        - Setiap data soal wajib memiliki:
+        - "question"
+        - "options"
+        - "correctAnswer"
+        - "options" harus berupa object berisi pilihan:
+        - "A"
+        - "B"
+        - "C"
+        - "D"
+        - "correctAnswer" HARUS berisi salah satu huruf: "A", "B", "C", atau "D".
+        - Pastikan hanya ada SATU jawaban benar di setiap soal.
+        - Opsi jawaban salah harus tetap masuk akal, tetapi tidak boleh ambigu.
+        - Variasikan tipe soal, misalnya:
+        - definisi
+        - konsep utama
+        - perbedaan istilah
+        - fungsi
+        - karakteristik
+        - langkah/proses
+        - Jangan menambahkan penjelasan, pembuka, penutup, atau teks apa pun di luar hasil array.
+        - Output HARUS berupa array JSON valid.
+        - Jangan bungkus output dengan markdown seperti ```json.
+        - Jangan tambahkan kalimat seperti "Berikut adalah quiz..." atau kalimat pengantar lainnya.
+
+        ## 11. Format output jika CONTEXT_MODE = "QUIZ"
+        Jika CONTEXT_MODE = "QUIZ", format output HARUS seperti ini:
+        [
+        {
+            "question": "Pertanyaan soal",
+            "options": {
+            "A": "Pilihan A",
+            "B": "Pilihan B",
+            "C": "Pilihan C",
+            "D": "Pilihan D"
+            },
+            "correctAnswer": "A"
+        }
+        ]
+
+        ## 12. Aturan khusus jika CONTEXT_MODE = "CHAT"
+        Jika CONTEXT_MODE = "CHAT", maka ikuti seluruh aturan jawaban normal yang sudah ada pada prompt ini, dan JANGAN mengubah format jawaban menjadi array JSON quiz.
+
         # MANAJEMEN JENIS KONTEKS
 
         ## Jika Konteks berisi SOAL TUGAS + MATERI KULIAH
@@ -180,14 +232,15 @@ AN, AKRONIM, atau bentuk pendek dari istilah,
     rag_chain = (
         {
             "context": lambda x: format_docs_with_source(retriever.invoke(x["standalone"])),
-            "question": lambda x: x['question']
+            "question": lambda x: x['question'],
+            "mode": lambda x: x['mode']
         }
         | prompt
-        | llm 
+        | llm  
         | StrOutputParser()
     )
 
-    response = rag_chain.invoke({"question" : user_input, "standalone" : standalone_query})
+    response = rag_chain.invoke({"question" : user_input, "standalone" : standalone_query, "mode" : mode})
 
     memory.add_message("USER", user_input, roomid)
     memory.add_message("ASSISTANT", response, roomid)
