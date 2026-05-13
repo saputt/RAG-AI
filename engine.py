@@ -111,7 +111,7 @@ def get_chat_response(retriever, user_input, roomid, mode):
 
         ## 7. Penanganan singkatan dan istilah setara
         - Jika pertanyaan pengguna menggunakan SINGKATapa itu rpl
-AN, AKRONIM, atau bentuk pendek dari istilah,
+        AN, AKRONIM, atau bentuk pendek dari istilah,
         Anda harus memeriksa apakah di KONTEKS terdapat kepanjangan atau istilah lengkap yang merujuk pada hal yang sama.
         - Perlakukan singkatan dan kepanjangannya sebagai topik yang sama jika masih jelas merujuk pada istilah yang sama dalam KONTEKS.
         - Contoh:
